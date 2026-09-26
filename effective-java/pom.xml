@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>club.quarkusclub.bookclub</groupId>
+    <artifactId>effective-java</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>Book Club :: Effective Java</name>
+    <description>
+        Aggregator for the Effective Java sessions. Each item discussed by the book club is its
+        own Maven module, addressable as chapter-NN/item-NN.
+    </description>
+
+    <modules>
+        <module>chapter-03/item-10</module>
+    </modules>
+</project>

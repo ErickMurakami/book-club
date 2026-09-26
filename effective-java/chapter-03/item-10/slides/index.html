@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Effective Java - Item 10 - O contrato do equals()</title>
+    <meta name="description" content="Item 10 de Effective Java: o contrato do equals(), suas cinco propriedades, a receita de implementação, erros comuns e as alternativas modernas (records, EqualsVerifier)." />
+
+    <link rel="icon" href="../../../../assets/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" href="../../../../assets/logo.png" type="image/png" sizes="145x145" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Open+Sans:wght@600;700&family=Hanken+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+    <link rel="stylesheet" href="../../../../assets/deck.css" />
+    <script>
+      try {
+        var t = localStorage.getItem("qc-theme");
+        if (t === "dark") document.documentElement.setAttribute("data-theme", "dark");
+      } catch (e) {}
+    </script>
+  </head>
+
+  <body>
+    <div class="reveal">
+      <div class="slides">
+
+        <!-- ============================================ ABERTURA -->
+
+        <section class="cover">
+          <div class="kicker">Quarkus Club Book Club</div>
+          <h1>Effective <em>Java</em></h1>
+          <p class="title-sub">Item 10<br /><strong>O contrato do equals()</strong></p>
+          <p class="sub">Capítulo 3 - Métodos comuns a todos os objetos.</p>
+          <div class="byline">
+            <span>Quarkus Club</span>
+            <span class="dot">/</span>
+            <span class="where">Book Club - Effective Java</span>
+          </div>
+          <aside class="notes">
+            Reflexividade, simetria e transitividade foram apresentadas por Matheus Cruz em uma
+            sessão anterior. Este deck absorve aquele material (o repositório original saiu do ar
+            ao migrar para a organização do Quarkus Club) e segue exatamente de onde a "cláusula
+            delegada" parou: consistência em diante.
+          </aside>
+        </section>
+
+        <section>
+          <div class="kicker">Como o clube funciona</div>
+          <h2>Um item do livro <em>por sessão</em></h2>
+          <p class="lede">Cada encontro dissecamos um Item de Effective Java: a teoria, o código que
+            prova cada regra, e os testes que comprovam cada afirmação.</p>
+          <div class="duo">
+            <div class="col">
+              <h3>Este repositório</h3>
+              <ul>
+                <li><code>effective-java/chapter-NN/item-NN/</code> por sessão</li>
+                <li>Slides reveal.js, em português e inglês</li>
+                <li>Código Quarkus + Java 25, com testes AssertJ</li>
+              </ul>
+            </div>
+            <div class="col">
+              <h3>Este item</h3>
+              <ul>
+                <li>Capítulo 3, Item 10</li>
+                <li><code>effective-java/chapter-03/item-10/</code></li>
+                <li>36 testes, 100% verde</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="agenda">
+          <div class="kicker">O caminho</div>
+          <h2>Nove <em>paradas</em></h2>
+          <ol>
+            <li>Vale a pena sobrescrever equals?</li>
+            <li>Reflexividade <span class="t">recap</span></li>
+            <li>Simetria <span class="t">recap</span></li>
+            <li>Transitividade <span class="t">recap</span></li>
+            <li>Consistência</li>
+            <li>Não-nulidade</li>
+            <li>A receita completa</li>
+            <li>Otimização de performance</li>
+            <li>Erros comuns</li>
+            <li>Records e alternativas modernas</li>
+          </ol>
+          <aside class="notes">
+            Os itens 2-4 são recapitulação rápida do que Matheus Cruz já apresentou. O grosso da
+            sessão de hoje começa no item 5, Consistência.
+          </aside>
+        </section>
+
+        <!-- ============================================ SOBRESCREVER OU NÃO -->
+
+        <section class="step">
+          <div class="num">ANTES DE TUDO</div>
+          <h2>Será que você deveria <em>sobrescrever</em>?</h2>
+          <p class="goal">A forma mais fácil de evitar problemas é não sobrescrever equals.</p>
+          <div class="meta">
+            <span>capítulo 3, item 10</span>
+          </div>
+        </section>
+
+        <section>
+          <div class="kicker">Quando NÃO sobrescrever</div>
+          <h2>Quatro <em>situações</em></h2>
+          <div class="cards">
+            <div class="card">
+              <span class="n">EXCLUSIVA</span>
+              <h3>Entidade ativa</h3>
+              <p><code>Thread</code>: cada instância é única por natureza, não um valor.</p>
+            </div>
+            <div class="card">
+              <span class="n">SEM IGUALDADE LÓGICA</span>
+              <h3>Não há necessidade</h3>
+              <p><code>Pattern</code>: os arquitetos decidiram que ninguém precisa comparar por valor.</p>
+            </div>
+            <div class="card">
+              <span class="n">JÁ RESOLVIDO</span>
+              <h3>Superclasse cobre</h3>
+              <p><code>AbstractSet</code>, <code>AbstractList</code>, <code>AbstractMap</code>.</p>
+            </div>
+          </div>
+          <p class="sub">É uma quarta: classe privada ou pacote-privado, onde você tem certeza de que
+            equals nunca será chamado.</p>
+        </section>
+
+        <section class="code">
+          <div class="kicker">O exemplo que não deveria existir</div>
+          <span class="filename">UnwiseThread.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/UnwiseThread.java"></code></pre>
+          <p class="sub">Duas threads distintas ficam "iguais". <code>Thread</code> é uma entidade ativa, não um valor.</p>
+        </section>
+
+        <section class="code small">
+          <div class="kicker">O teste que prova o problema</div>
+          <span class="filename">UnwiseThreadTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/UnwiseThreadTest.java"></code></pre>
+        </section>
+
+        <section>
+          <div class="kicker">Quando SOBRESCREVER</div>
+          <h2>Classes de <em>valor</em></h2>
+          <p class="lede">Quando a igualdade lógica diverge da identidade do objeto - <code>Integer</code>, <code>String</code>, e os exemplos de hoje.</p>
+          <p class="sub"><strong>Exceção:</strong> classes com controle de instância (Item 1), como <code>enum</code>,
+            não precisam - a igualdade lógica já é a identidade.</p>
+        </section>
+
+        <!-- ============================================ REFLEXIVIDADE -->
+
+        <section class="step">
+          <div class="num">RECAP 1 · 3</div>
+          <h2>Reflexividade</h2>
+          <p class="goal">x.equals(x) deve ser sempre true.</p>
+          <div class="meta">
+            <span>apresentado por Matheus Cruz</span>
+          </div>
+        </section>
+
+        <section class="code">
+          <div class="kicker">Quase impossível violar por acidente</div>
+          <span class="filename">Player.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/reflexivity/Player.java"></code></pre>
+          <p class="sub">Sem override nenhum: a implementação herdada de <code>Object</code> já resolve.</p>
+        </section>
+
+        <section class="code small">
+          <span class="filename">PlayerTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/reflexivity/PlayerTest.java"></code></pre>
+        </section>
+
+        <!-- ============================================ SIMETRIA -->
+
+        <section class="step">
+          <div class="num">RECAP 2 · 3</div>
+          <h2>Simetria</h2>
+          <p class="goal">x.equals(y) deve concordar com y.equals(x).</p>
+          <div class="meta">
+            <span>apresentado por Matheus Cruz</span>
+          </div>
+        </section>
+
+        <section class="duo">
+          <div class="col">
+            <h3>CaseInsensitiveString</h3>
+            <p class="sub">Só compara com o próprio tipo. Simétrico.</p>
+          </div>
+          <div class="col">
+            <h3>CaseInsensitiveViolation</h3>
+            <p class="sub">Tenta se interligar com String. Simetria quebrada.</p>
+          </div>
+        </section>
+
+        <section class="code">
+          <span class="filename">symmetry/CaseInsensitiveViolation.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/symmetry/CaseInsensitiveViolation.java"></code></pre>
+        </section>
+
+        <section class="code small">
+          <span class="filename">CaseInsensitiveViolationTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/symmetry/CaseInsensitiveViolationTest.java"></code></pre>
+          <p class="sub"><code>list.contains(s)</code> retorna false mesmo com <code>cis.equals(s)</code> true - o comportamento em coleções fica indefinido.</p>
+        </section>
+
+        <!-- ============================================ TRANSITIVIDADE -->
+
+        <section class="step">
+          <div class="num">RECAP 3 · 3</div>
+          <h2>Transitividade</h2>
+          <p class="goal">x=y e y=z devem implicar x=z. O problema clássico de herança.</p>
+          <div class="meta">
+            <span>apresentado por Matheus Cruz</span>
+          </div>
+        </section>
+
+        <section class="code">
+          <span class="filename">transitivity/Point.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/transitivity/Point.java"></code></pre>
+          <p class="sub">Sozinho, obedece ao contrato. O problema começa quando uma subclasse adiciona um componente de valor.</p>
+        </section>
+
+        <section class="answer">
+          <div class="kicker">ColorPoint extends Point</div>
+          <h1>Três tentativas.</h1>
+          <p class="sub fragment fade-up">Nenhuma resolve simetria, transitividade e Liskov ao mesmo tempo.</p>
+        </section>
+
+        <section class="code">
+          <div class="kicker">Tentativa A - só compara com o próprio tipo</div>
+          <span class="filename">ColorPointBrokenSymmetry.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/transitivity/ColorPointBrokenSymmetry.java"></code></pre>
+        </section>
+
+        <section class="code small">
+          <span class="filename">ColorPointBrokenSymmetryTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/transitivity/ColorPointBrokenSymmetryTest.java"></code></pre>
+          <p class="sub">p.equals(cp) é true, cp.equals(p) é false. Simetria quebrada.</p>
+        </section>
+
+        <section class="code">
+          <div class="kicker">Tentativa B - ignora cor nas comparações mistas</div>
+          <span class="filename">ColorPointBrokenTransitivity.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/transitivity/ColorPointBrokenTransitivity.java"></code></pre>
+        </section>
+
+        <section class="code small">
+          <span class="filename">ColorPointBrokenTransitivityTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/transitivity/ColorPointBrokenTransitivityTest.java"></code></pre>
+          <p class="sub">p1=p2 e p2=p3, mas p1≠p3. E o segundo teste: dois irmãos que se delegam mutuamente estouram a pilha.</p>
+        </section>
+
+        <section class="gotcha">
+          <div class="kicker">Consequência extra</div>
+          <h2>StackOverflowError <em>de graça</em></h2>
+          <div class="box">
+            Duas subclasses diferentes de Point (ColorPoint e SmellPoint), cada uma "delegando para o outro lado"
+            quando o tipo não bate. Uma chamada a myColorPoint.equals(mySmellPoint) recursa para sempre.
+          </div>
+        </section>
+
+        <section class="code">
+          <div class="kicker">Tentativa C - getClass() em vez de instanceof</div>
+          <span class="filename">ColorPointGetClass.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/transitivity/ColorPointGetClass.java"></code></pre>
+        </section>
+
+        <section class="code small">
+          <span class="filename">ColorPointGetClassTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/transitivity/ColorPointGetClassTest.java"></code></pre>
+          <p class="sub">Simétrico só entre instâncias do mesmo tipo exato - mas Point não muda o próprio equals, então p.equals(cp) ainda é true e cp.equals(p) é false. É exatamente essa assimetria contra a própria superclasse que viola Liskov.</p>
+        </section>
+
+        <section class="answer">
+          <div class="kicker">A saída</div>
+          <h1>Composição, não herança.</h1>
+          <p class="sub fragment fade-up">ColorPoint não É um Point - ele TEM um Point.</p>
+        </section>
+
+        <section class="code">
+          <span class="filename">ColorPointComposition.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/transitivity/ColorPointComposition.java"></code></pre>
+        </section>
+
+        <section class="code small">
+          <span class="filename">ColorPointCompositionTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/transitivity/ColorPointCompositionTest.java"></code></pre>
+        </section>
+
+        <section class="checkpoint">
+          <div class="kicker">Recap</div>
+          <h2>Reflexivo, simétrico, transitivo</h2>
+          <ul>
+            <li>Reflexividade: quase impossível violar por acidente</li>
+            <li>Simetria: cuidado ao tentar se interligar com outro tipo</li>
+            <li>Transitividade: o problema clássico é herança + componente de valor</li>
+          </ul>
+        </section>
+
+        <!-- ============================================ CONSISTÊNCIA -->
+
+        <section class="step">
+          <div class="num">A PARTIR DE AGORA</div>
+          <h2>Consistência</h2>
+          <p class="goal">O resultado não pode mudar enquanto os objetos comparados não mudam.</p>
+          <div class="meta">
+            <span class="time">o resto da sessão</span>
+          </div>
+        </section>
+
+        <section>
+          <div class="kicker">O quarto requisito</div>
+          <h2>Objetos <em>imutáveis</em> ganham de graça</h2>
+          <p class="lede">Se um objeto nunca muda, repetidas chamadas a equals contra o mesmo argumento sempre concordam.</p>
+        </section>
+
+        <section class="code">
+          <span class="filename">consistency/ReservationSnapshot.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/consistency/ReservationSnapshot.java"></code></pre>
+        </section>
+
+        <section class="code small">
+          <span class="filename">ReservationSnapshotTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/consistency/ReservationSnapshotTest.java"></code></pre>
+        </section>
+
+        <section class="gotcha">
+          <div class="kicker">O erro real do JDK</div>
+          <h2>java.net.URL.equals() <em>quebra isso</em></h2>
+          <div class="box">
+            Depende da resolução do hostname para um endereço IP - o que exige acesso à rede e pode
+            mudar ao longo do tempo. O próprio livro chama isso de "um grande erro" que não pode mais
+            ser corrigido por compatibilidade.
+          </div>
+        </section>
+
+        <section class="code">
+          <div class="kicker">O mesmo problema, sem depender de rede de verdade</div>
+          <span class="filename">consistency/FlakyPriceQuote.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/consistency/FlakyPriceQuote.java"></code></pre>
+          <p class="sub">Um DoubleSupplier injetado simula "consulta ao vivo" de forma determinística - o teste continua estável em CI.</p>
+        </section>
+
+        <section class="code small">
+          <span class="filename">FlakyPriceQuoteTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/consistency/FlakyPriceQuoteTest.java"></code></pre>
+          <p class="sub">As mesmas duas instâncias discordam entre uma chamada e a próxima - sem nenhuma ter mudado.</p>
+        </section>
+
+        <section class="checkpoint">
+          <div class="kicker">Checkpoint</div>
+          <h2>Consistência</h2>
+          <ul>
+            <li>Imutabilidade resolve consistência de graça</li>
+            <li>equals nunca deve depender de um recurso volátil (rede, relógio, aleatório)</li>
+          </ul>
+        </section>
+
+        <!-- ============================================ NÃO-NULIDADE -->
+
+        <section class="step">
+          <div class="num">PRÓXIMA PARADA</div>
+          <h2>Não-nulidade</h2>
+          <p class="goal">Nenhum objeto deve ser igual a null - e não deve lançar exceção tentando descobrir isso.</p>
+        </section>
+
+        <section class="code">
+          <span class="filename">nonnullity/Ticket.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/nonnullity/Ticket.java"></code></pre>
+          <p class="sub">instanceof já retorna false quando o operando da esquerda é null (JLS 15.20.2). Sem checagem explícita.</p>
+        </section>
+
+        <section class="code small">
+          <span class="filename">TicketTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/nonnullity/TicketTest.java"></code></pre>
+        </section>
+
+        <section class="code">
+          <div class="kicker">O que acontece quando você pula o instanceof</div>
+          <span class="filename">nonnullity/TicketUnsafeCast.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/nonnullity/TicketUnsafeCast.java"></code></pre>
+        </section>
+
+        <section class="code small">
+          <span class="filename">TicketUnsafeCastTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/nonnullity/TicketUnsafeCastTest.java"></code></pre>
+          <p class="sub">null lança NullPointerException, tipo errado lança ClassCastException. Nenhum dos dois deveria acontecer.</p>
+        </section>
+
+        <section class="checkpoint">
+          <div class="kicker">Checkpoint</div>
+          <h2>Não-nulidade</h2>
+          <ul>
+            <li>instanceof é o type-check E o null-check, ao mesmo tempo</li>
+            <li>Cast só depois do instanceof - nunca antes</li>
+          </ul>
+        </section>
+
+        <!-- ============================================ RECEITA -->
+
+        <section class="step">
+          <div class="num">O CORAÇÃO DO ITEM</div>
+          <h2>A receita completa</h2>
+          <p class="goal">Quatro passos, um exemplo clássico: PhoneNumber.</p>
+        </section>
+
+        <section class="agenda">
+          <div class="kicker">Passo a passo</div>
+          <h2>Quatro <em>etapas</em></h2>
+          <ol>
+            <li>== para referência <span class="t">otimização</span></li>
+            <li>instanceof para tipo <span class="t">é o null-check</span></li>
+            <li>cast, seguro pelo passo 2</li>
+            <li>comparar campo a campo <span class="t">primitivos com ==</span></li>
+          </ol>
+        </section>
+
+        <section class="code">
+          <div class="kicker">Cada passo, com log</div>
+          <span class="filename">recipe/PhoneNumber.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/recipe/PhoneNumber.java"></code></pre>
+          <p class="sub">Cada ramo do equals emite um log - rodando ao vivo, o terminal narra qual cláusula disparou.</p>
+        </section>
+
+        <section class="code small">
+          <div class="kicker">As cinco propriedades, escritas à mão</div>
+          <span class="filename">PhoneNumberTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/recipe/PhoneNumberTest.java"></code></pre>
+        </section>
+
+        <section class="answer">
+          <div class="kicker">Melhor prática</div>
+          <h1>EqualsVerifier.</h1>
+          <p class="sub fragment fade-up">Uma biblioteca que verifica o contrato inteiro via reflexão - reflexivo, simétrico, transitivo, consistente, não-nulo, hashCode - em uma linha.</p>
+        </section>
+
+        <section class="code">
+          <div class="kicker">A produção: PhoneNumber como chave de um bean CDI</div>
+          <span class="filename">recipe/PhoneBookRegistry.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/recipe/PhoneBookRegistry.java"></code></pre>
+          <p class="sub">@ApplicationScoped: um Map real, usado por uma aplicação Quarkus real.</p>
+        </section>
+
+        <section class="code small">
+          <div class="kicker">@QuarkusTest - simula a aplicação de verdade</div>
+          <span class="filename">PhoneBookRegistryTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/recipe/PhoneBookRegistryTest.java"></code></pre>
+          <p class="sub">Sobe o CDI de verdade e injeta o bean real - a busca por uma instância NOVA mas igual encontra o registro.</p>
+        </section>
+
+        <section class="checkpoint">
+          <div class="kicker">Checkpoint</div>
+          <h2>A receita</h2>
+          <ul>
+            <li>Os quatro passos, na ordem certa</li>
+            <li>hashCode sempre junto com equals (Item 11, na próxima sessão)</li>
+            <li>EqualsVerifier para não escrever os cinco testes à mão toda vez</li>
+          </ul>
+        </section>
+
+        <!-- ============================================ PERFORMANCE -->
+
+        <section class="step">
+          <div class="num">OTIMIZAÇÃO</div>
+          <h2>Ordem de campos e campos derivados</h2>
+          <p class="goal">Comparar o que é barato e provável de divergir primeiro.</p>
+        </section>
+
+        <section class="code">
+          <span class="filename">performance/Polygon.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/performance/Polygon.java"></code></pre>
+          <p class="sub">área é um campo derivado, calculado uma vez no construtor. Comparar duas áreas é muito mais barato que comparar todos os vértices.</p>
+        </section>
+
+        <section class="code small">
+          <span class="filename">PolygonTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/performance/PolygonTest.java"></code></pre>
+          <p class="sub">Um contador exposto pelo teste prova o short-circuit: 0 comparações de vértice quando as áreas já divergem, 4 quando precisam ser checados.</p>
+        </section>
+
+        <section class="checkpoint">
+          <div class="kicker">Checkpoint</div>
+          <h2>Performance</h2>
+          <ul>
+            <li>Campos baratos e com maior chance de divergir vêm primeiro</li>
+            <li>Campos derivados podem poupar a comparação cara</li>
+            <li>Nunca compare campos que não fazem parte do estado lógico</li>
+          </ul>
+        </section>
+
+        <!-- ============================================ ERROS COMUNS -->
+
+        <section class="step">
+          <div class="num">ERROS COMUNS</div>
+          <h2>Dois jeitos clássicos de errar</h2>
+          <p class="goal">Esquecer o hashCode, e sobrecarregar em vez de sobrescrever.</p>
+        </section>
+
+        <section class="duo">
+          <div class="col">
+            <h3>BrokenHashCode</h3>
+            <p class="sub">equals sobrescrito, hashCode não. HashSet não reconhece o "igual".</p>
+          </div>
+          <div class="col">
+            <h3>FixedHashCode</h3>
+            <p class="sub">O mesmo equals, com hashCode ao lado. HashSet funciona.</p>
+          </div>
+        </section>
+
+        <section class="code small">
+          <span class="filename">HashCodeTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/commonmistakes/HashCodeTest.java"></code></pre>
+        </section>
+
+        <section class="code">
+          <div class="kicker">Sobrecarga, não override</div>
+          <span class="filename">commonmistakes/OverloadNotOverride.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/commonmistakes/OverloadNotOverride.java"></code></pre>
+          <p class="sub">equals(OverloadNotOverride), não equals(Object). Sem @Override, o compilador nunca avisa.</p>
+        </section>
+
+        <section class="code small">
+          <span class="filename">OverloadNotOverrideTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/commonmistakes/OverloadNotOverrideTest.java"></code></pre>
+          <p class="sub">Funciona quando chamado direto. Dentro de uma List, contains() usa equals(Object) - o overload nunca é chamado.</p>
+        </section>
+
+        <section class="gotcha">
+          <div class="kicker">A defesa</div>
+          <h2>Use <em>@Override</em> sempre</h2>
+          <div class="box">
+            Com @Override, esse mesmo código simplesmente não compila - o erro aponta exatamente
+            para o problema, em vez de virar um bug silencioso descoberto horas depois.
+          </div>
+        </section>
+
+        <!-- ============================================ RECORDS -->
+
+        <section class="step">
+          <div class="num">ALTERNATIVAS MODERNAS</div>
+          <h2>Records e AutoValue</h2>
+          <p class="goal">A mesma receita, gerada por você em vez de escrita à mão.</p>
+        </section>
+
+        <section class="code">
+          <span class="filename">records/PhoneNumberRecord.java</span>
+          <pre><code class="language-java" data-src="../src/main/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/records/PhoneNumberRecord.java"></code></pre>
+          <p class="sub">O mesmo valor de PhoneNumber, como record. O compilador gera equals, hashCode e toString a partir dos componentes.</p>
+        </section>
+
+        <section class="code small">
+          <span class="filename">PhoneNumberRecordTest.java</span>
+          <pre><code class="language-java" data-src="../src/test/java/club/quarkusclub/bookclub/effectivejava/chapter03/item10/records/PhoneNumberRecordTest.java"></code></pre>
+          <p class="sub">O mesmo EqualsVerifier usado em PhoneNumber também aprova o record - mesma garantia, zero linhas de equals escritas.</p>
+        </section>
+
+        <section>
+          <div class="kicker">Três caminhos para o mesmo lugar</div>
+          <h2>Manual, <em>record</em>, ou AutoValue</h2>
+          <div class="cards">
+            <div class="card">
+              <span class="n">MANUAL</span>
+              <h3>A receita deste item</h3>
+              <p>Controle total, mais código, mais chance de erro humano.</p>
+            </div>
+            <div class="card">
+              <span class="n">RECORD</span>
+              <h3>Java 16+</h3>
+              <p>Gerado pelo compilador, zero dependência, exige que o tipo seja um agregado de valores.</p>
+            </div>
+            <div class="card">
+              <span class="n">AUTOVALUE</span>
+              <h3>Google, pré-records</h3>
+              <p>Gerado por annotation processing - o antecessor histórico dos records.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================ ENCERRAMENTO -->
+
+        <section class="checkpoint">
+          <div class="kicker">Recapitulando</div>
+          <h2>Item 10, <em>por completo</em></h2>
+          <ul>
+            <li>As cinco propriedades: reflexivo, simétrico, transitivo, consistente, não-nulo</li>
+            <li>A receita de quatro passos, e por que a ordem importa</li>
+            <li>Otimize com campos baratos primeiro e campos derivados</li>
+            <li>Não esqueça o hashCode, nem sobrecarregue em vez de sobrescrever</li>
+            <li>Records resolvem tudo isso de graça, quando o tipo permite</li>
+          </ul>
+        </section>
+
+        <section class="answer">
+          <div class="kicker">Fim do Item 10</div>
+          <h1>Perguntas?</h1>
+          <p class="sub fragment fade-up">Código completo em <code>effective-java/chapter-03/item-10/</code>, 36 testes, 100% verde.</p>
+          <div class="byline">
+            <span>Quarkus Club</span>
+            <span class="dot">/</span>
+            <span class="where">Próxima sessão: Item 11 - hashCode</span>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <div class="deck-footer">
+      <span id="stepIndicator" class="step-indicator"></span>
+      <span class="lang"><b>PT</b> · <a href="en.html">EN</a></span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+    <script src="../../../../assets/deck.js"></script>
+    <script>initDeck();</script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+#!/bin/bash
+# This repo's hooksPath shadows any globally configured hooks, so delegate to
+# whatever the committer already has set as core.hooksPath --global, if any.
+set -euo pipefail
+
+GLOBAL_HOOKS_DIR="$(git config --global --get core.hooksPath 2>/dev/null || true)"
+
+if [ -n "$GLOBAL_HOOKS_DIR" ] && [ -x "$GLOBAL_HOOKS_DIR/prepare-commit-msg" ]; then
+    exec "$GLOBAL_HOOKS_DIR/prepare-commit-msg" "$@"
+fi
+
+exit 0

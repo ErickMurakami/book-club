@@ -1,0 +1,99 @@
+name: Attribution AI Guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: attribution-ai-guard-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  reject-ai-attribution:
+    name: "Reject AI trailers, mentions and co-authorship"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine commit range
+        id: range
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            echo "range=$BASE..$HEAD" >> "$GITHUB_OUTPUT"
+          else
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.event.after }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              echo "range=$AFTER" >> "$GITHUB_OUTPUT"
+            else
+              echo "range=$BEFORE..$AFTER" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Scan commit messages
+        env:
+          COMMIT_RANGE: ${{ steps.range.outputs.range }}
+        run: |
+          set -euo pipefail
+
+          # Same tool list as the local prepare-commit-msg hook (~/.git-hooks),
+          # extended with generic AI-generated footers this hook never has to
+          # catch locally because it strips trailers before the commit exists.
+          PATTERN='Co-authored-by:.*(Copilot|Cursor|Claude|Gemini|ChatGPT|OpenAI|Codex|Codeium|Tabnine|CodeWhisperer|OpenCode|Qwen|alibaba|@github\.com|@cursor\.com|@anthropic\.com|@openai\.com|@google\.com|@codeium\.dev|@tabnine\.com|@amazon\.com|noreply@|<AI>)'
+          PATTERN="$PATTERN|Generated (with|by)[[:space:]]+(Claude|Copilot|ChatGPT|Codex|Gemini|Cursor|AI)"
+          PATTERN="$PATTERN|^[A-Za-z][A-Za-z0-9]*-Session(-Id)?:"
+          PATTERN="$PATTERN|🤖"
+          PATTERN="$PATTERN|Claude Code|Anthropic|ChatGPT|OpenAI Codex|GitHub Copilot|Google Gemini"
+
+          FAILED=0
+          for SHA in $(git rev-list "$COMMIT_RANGE"); do
+            MSG=$(git log -1 --format=%B "$SHA")
+            if grep -Eiq "$PATTERN" <<< "$MSG"; then
+              echo "::error title=AI attribution detected::commit $SHA references an AI tool or carries an AI co-authorship trailer"
+              grep -Ein "$PATTERN" <<< "$MSG" || true
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "Commits must not mention AI tools or carry AI co-authorship / session trailers."
+            exit 1
+          fi
+
+          echo "No AI trailers or mentions found in commit range."
+
+      - name: Scan pull request title and description
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+
+          PATTERN='Co-authored-by:.*(Copilot|Cursor|Claude|Gemini|ChatGPT|OpenAI|Codex|Codeium|Tabnine|CodeWhisperer|OpenCode|Qwen|alibaba|@github\.com|@cursor\.com|@anthropic\.com|@openai\.com|@google\.com|@codeium\.dev|@tabnine\.com|@amazon\.com|noreply@|<AI>)'
+          PATTERN="$PATTERN|Generated (with|by)[[:space:]]+(Claude|Copilot|ChatGPT|Codex|Gemini|Cursor|AI)"
+          PATTERN="$PATTERN|🤖"
+          PATTERN="$PATTERN|Claude Code|Anthropic|ChatGPT|OpenAI Codex|GitHub Copilot|Google Gemini"
+
+          if grep -Eiq "$PATTERN" <<< "$PR_TITLE"$'\n'"$PR_BODY"; then
+            echo "::error title=AI attribution detected::pull request title or description references an AI tool"
+            grep -Ein "$PATTERN" <<< "$PR_TITLE"$'\n'"$PR_BODY" || true
+            echo "Pull request title/description must not mention AI tools or carry AI attribution."
+            exit 1
+          fi
+
+          echo "No AI trailers or mentions found in pull request title/description."

@@ -1,0 +1,21 @@
+#!/bin/bash
+# Attribution AI Guard: mirrors .github/workflows/attribution-ai-guard.yml so
+# violations are caught locally instead of only at CI.
+set -euo pipefail
+
+COMMIT_MSG_FILE="$1"
+
+PATTERN='Co-authored-by:.*(Copilot|Cursor|Claude|Gemini|ChatGPT|OpenAI|Codex|Codeium|Tabnine|CodeWhisperer|OpenCode|Qwen|alibaba|@github\.com|@cursor\.com|@anthropic\.com|@openai\.com|@google\.com|@codeium\.dev|@tabnine\.com|@amazon\.com|noreply@|<AI>)'
+PATTERN="$PATTERN|Generated (with|by)[[:space:]]+(Claude|Copilot|ChatGPT|Codex|Gemini|Cursor|AI)"
+PATTERN="$PATTERN|^[A-Za-z][A-Za-z0-9]*-Session(-Id)?:"
+PATTERN="$PATTERN|🤖"
+PATTERN="$PATTERN|Claude Code|Anthropic|ChatGPT|OpenAI Codex|GitHub Copilot|Google Gemini"
+
+if grep -Eiq "$PATTERN" "$COMMIT_MSG_FILE"; then
+    echo "Attribution AI Guard: commit message references an AI tool or carries an AI co-authorship/session trailer." >&2
+    grep -Ein "$PATTERN" "$COMMIT_MSG_FILE" >&2 || true
+    echo "Remove it and commit again." >&2
+    exit 1
+fi
+
+exit 0
