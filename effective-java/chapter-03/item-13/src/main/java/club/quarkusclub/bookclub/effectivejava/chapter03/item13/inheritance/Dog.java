@@ -10,11 +10,6 @@ public class Dog extends Animal implements Cloneable {
 
     @Override
     public Dog clone() {
-        try{
         return (Dog) super.clone();
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
-
     }
 }

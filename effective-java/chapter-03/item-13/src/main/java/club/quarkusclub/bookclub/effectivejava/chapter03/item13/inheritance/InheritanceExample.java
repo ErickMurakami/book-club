@@ -27,10 +27,4 @@ public class InheritanceExample {
         return (InheritanceExample) super.clone();
     }
 
-    public static void main(String[] args) {
-        var original = new Child();
-        System.out.println("Constructor-based copy: " + original.brokenClone().getClass().getSimpleName());
-        System.out.println("super.clone copy: " + original.clone().getClass().getSimpleName());
-        System.out.println("Child state: " + ((Child) original.clone()).label());
-    }
 }

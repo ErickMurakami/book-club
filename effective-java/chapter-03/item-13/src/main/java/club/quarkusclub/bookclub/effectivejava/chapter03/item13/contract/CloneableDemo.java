@@ -12,17 +12,4 @@ public final class CloneableDemo {
         return new CloneableDemo().clone();
     }
 
-    public static void main(String[] args) throws ReflectiveOperationException {
-        Describable description = () -> "Book Club";
-        System.out.println("Mixin operation: " + description.describe());
-        System.out.println("Cloneable methods: " + Cloneable.class.getDeclaredMethods().length);
-        var method = Object.class.getDeclaredMethod("clone");
-        System.out.println("Object.clone accessible: " + method.canAccess(new MarkerOnly()));
-        System.out.println("Module permits opening: " + method.trySetAccessible());
-        try {
-            unsupportedCopy();
-        } catch (CloneNotSupportedException expected) {
-            System.out.println("Without Cloneable: " + expected.getClass().getSimpleName());
-        }
-    }
 }

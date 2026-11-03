@@ -48,13 +48,4 @@ public final class PhoneNumber implements Cloneable {
         return Objects.hash(areaCode, prefix, lineNumber);
     }
 
-    public static void main(String[] args) {
-        var original = new PhoneNumber(313, 414, 533);
-        int before = constructorCalls();
-        PhoneNumber copy = original.clone();
-        System.out.println("Different objects: " + (copy != original));
-        System.out.println("Same concrete class: " + (copy.getClass() == original.getClass()));
-        System.out.println("Value equality: " + copy.equals(original));
-        System.out.println("Constructor calls during clone: " + (constructorCalls() - before));
-    }
 }

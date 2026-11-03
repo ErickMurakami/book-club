@@ -40,18 +40,4 @@ public final class Stack implements Cloneable {
         return copy;
     }
 
-    public static void main(String[] args) {
-        var original = new Stack();
-        original.push("top");
-        original.shallowCopy().pop();
-        System.out.println("Original pop after shallow pop: " + original.pop());
-        original.push("top");
-        original.clone().pop();
-        System.out.println("Original pop after corrected clone pop: " + original.pop());
-        StringBuilder[] array = {new StringBuilder("A")};
-        StringBuilder[] copy = array.clone();
-        copy[0].append("B");
-        System.out.println("Arrays differ: " + (array != copy));
-        System.out.println("Shared element: " + array[0]);
-    }
 }

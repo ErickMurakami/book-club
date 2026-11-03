@@ -26,14 +26,4 @@ public final class Account {
         return List.copyOf(labels);
     }
 
-    public static void main(String[] args) {
-        var original = new Account(List.of("primary"));
-        var constructorCopy = new Account(original);
-        var factoryCopy = Account.copyOf(original);
-        constructorCopy.addLabel("constructor");
-        factoryCopy.addLabel("factory");
-        System.out.println("Original: " + original.labels());
-        System.out.println("Copy constructor: " + constructorCopy.labels());
-        System.out.println("Copy factory: " + factoryCopy.labels());
-    }
 }

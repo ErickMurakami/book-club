@@ -65,13 +65,4 @@ public final class HashTable implements Cloneable {
         return copy;
     }
 
-    public static void main(String[] args) {
-        var original = new HashTable();
-        original.put("Aa", "first");
-        original.put("BB", "second");
-        original.shallowBucketsCopy().put("Aa", "shared tail changed");
-        System.out.println("Original after bucket-only copy edit: " + original.get("Aa"));
-        original.clone().put("Aa", "independent tail changed");
-        System.out.println("Original after node copy edit: " + original.get("Aa"));
-    }
 }
