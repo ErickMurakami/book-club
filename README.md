@@ -40,7 +40,7 @@ one-line-per-book index so it doesn't need editing every week. The live, filtera
         │   └── pom.xml
         ├── item-11/               hashCode contract, distribution, and caching
         ├── item-12/               useful toString representations and format contracts
-        └── item-13/               cloning, ownership, copy policies, and domain identity
+        └── item-13/               cloning representation
 ```
 
 Each book gets its own top-level directory (`effective-java/`, and whatever comes next), its own
